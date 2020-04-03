@@ -2,7 +2,9 @@
 title: "achiever_analyses_cp"
 author: "Carolyn Prentice"
 date: "30/03/2020"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r}
@@ -21,7 +23,7 @@ First we need to load the required packages
 knitr::opts_chunk$set(echo = TRUE)
 
 #load packages
-library(phyloseq)
+library("phyloseq"); packageVersion("phyloseq")
 library(tidyverse)
 library(dbplyr)
 library(extrafont)
@@ -34,7 +36,7 @@ library(vegan)
 
 #First I will focus on the BACTERIA data, and below examine the PHYTPLANKTON data from the 16S hloroplast sequences
 
-```{r setup, include=FALSE}
+```{r, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
 #load 16S microbial taxonomy, asv, and metadata files
@@ -50,10 +52,27 @@ OTU1 = otu_table(asvfile, taxa_are_rows = TRUE)
 TAX1 = tax_table(taxfile)
 MAP1 = sample_data(mapfile)
 
-
 #Make Phyloseq Object
 Achiever_Bac = merge_phyloseq(OTU1, TAX1, MAP1)
+
+#Remove singletons (taxa that appear only once)
+
+#remove singletons
+Achiever_Bac<-prune_taxa(taxa_sums(Achiever_Bac) > 1, Achiever_Bac) 
+
+
 ```
+
+```{r}
+otu_table(Achiever_Bac) #2804 taxa and 107 samples
+sample_data(Achiever_Bac)
+tax_table(Achiever_Bac)
+
+
+ntaxa(Achiever_Bac)  #2804
+
+```
+
 
 
 ```{r}
@@ -73,8 +92,68 @@ adon_loc<-adonis(distance(Achiever_Bac, method="bray") ~ Location2,data = metada
 
 adon_loc
 
+```
 
 
+```{r setup, include=FALSE}
+theme_set(theme_bw())
+
+#Bac.ord <- ordinate(Achiever_Bac, "NMDS", "bray")
+#p1 = plot_ordination(Achiever_Bac, Bac.ord, type="Taxa", color="Phylum", title="Taxa")
+#p1 + facet_wrap(~Phylum, 3)
+
+plot_bar(Achiever_Bac, fill = "Phylum")
+
+ordu = ordinate(Achiever_Bac, "PCoA", "unifrac", weighted=TRUE)
+
+#a lot of info for one ordination!
+```
+
+
+Here I will do some ordination plots using Colleen's code  
+
+```{r setup, include=FALSE}
+
+set.seed(1)
+achiever_nmds <- ordinate(
+  physeq = Achiever_Bac, 
+  method = "NMDS", 
+  distance = "bray",
+  trymax = 50
+)
+
+
+p1 <- plot_ordination(
+  physeq = Achiever_Bac,
+  ordination = achiever_nmds,
+  color = "Location2", #you can change this variable to other things like "Depth", "Station", "Location" ,etc. and it will automatically change the colors.
+  shape = "Depth2"
+  ) 
+
+#order Location2 in legend in a specific order, rather than alphabetical
+p1$data$Location2 <- factor(p1$data$Location2, levels = c("4791","Homathko","QU43" ,"Bute","Toba","Knight"))
+
+#Order Depth2 in legend in descending order
+p1$data$Depth2 <- factor(p1$data$Depth2, levels = c("0","5","10","25-30","90","100-200","200-300","400-500",">500"))
+
+
+#Changing aesthetics of plot1 -- colour, point size etc.
+
+
+#now plot, using the viridis color scheme. can change to other or use specific colors, as above.
+p1 + geom_point(size = 3) + 
+  scale_color_brewer(palette = "Spectral") +
+  theme_bw() +
+  theme(
+    panel.background = element_rect(fill = "transparent",colour = NA),
+    plot.background = element_rect(fill = "transparent",colour = NA),
+    panel.grid.major = element_blank(), 
+    panel.grid.minor = element_blank())
+
+p1
+
+
+#scale_color_viridis(discrete=TRUE, option="plasma")
 
 ```
 
@@ -99,7 +178,7 @@ mapfile2 <-read.csv("Achiever_QU43_Metadata_2020_chloroplast.csv", row.names=1,h
 
 You can also embed plots, for example:
 
-```{r pressure, echo=FALSE}
+```{r plot, echo=FALSE}
 plot(pressure)
 ```
 
