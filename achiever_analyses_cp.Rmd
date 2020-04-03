@@ -1,0 +1,106 @@
+---
+title: "achiever_analyses_cp"
+author: "Carolyn Prentice"
+date: "30/03/2020"
+output: html_document
+---
+
+```{r}
+#### only have to run once, or when you update R. Need BiocManager for R v 3.6 and newer, otherwise you need BbiocLite()####
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  +     install.packages("BiocManager")
+BiocManager::install()
+#########################################################
+#install packages
+BiocManager::install("phyloseq")
+```
+
+First we need to load the required packages
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#load packages
+library(phyloseq)
+library(tidyverse)
+library(dbplyr)
+library(extrafont)
+library(viridis)
+library(ggplot2)
+library(vegan)
+
+```
+
+
+#First I will focus on the BACTERIA data, and below examine the PHYTPLANKTON data from the 16S hloroplast sequences
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#load 16S microbial taxonomy, asv, and metadata files
+asvfile <-read.csv("Achiever_QU43_ASV_2020.csv", row.names=1, header = TRUE)
+taxfile <-as.matrix(read.csv("Achiever_QU43_Taxa_2020.csv",row.names=1,header = TRUE))
+mapfile <-read.csv("Achiever_QU43_Metadata_2020.csv", row.names=1,header=TRUE)
+```
+
+```{r}
+##turn them into components for phyloseq object
+
+OTU1 = otu_table(asvfile, taxa_are_rows = TRUE)
+TAX1 = tax_table(taxfile)
+MAP1 = sample_data(mapfile)
+
+
+#Make Phyloseq Object
+Achiever_Bac = merge_phyloseq(OTU1, TAX1, MAP1)
+```
+
+
+```{r}
+#to perform a PERMANOVA
+
+metadata <- as(sample_data(Achiever_Bac), "data.frame")
+
+#seeing if there is a significant effect of Depth
+
+adon_depth<-adonis(distance(Achiever_Bac, method="bray") ~ Depth2,
+       data = metadata)
+adon_depth
+
+#effect of Location? (Toba, Knight, Bute, QU43, Homathko, 5005, Orford)
+
+adon_loc<-adonis(distance(Achiever_Bac, method="bray") ~ Location2,data = metadata)
+
+adon_loc
+
+
+
+
+```
+
+
+
+
+Here I am bringing in the chloroplast data from the 16S sequences
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#load taxonomy, asv, and metadata files
+asvfile2 <-read.csv("Achiever_QU43_ASV_2020_chloroplast.csv", row.names=1, header = TRUE)
+taxfile2 <-as.matrix(read.csv("Achiever_QU43_Taxa_2020_chloroplast.csv",row.names=1,header = TRUE))
+mapfile2 <-read.csv("Achiever_QU43_Metadata_2020_chloroplast.csv", row.names=1,header=TRUE)
+
+```
+
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
