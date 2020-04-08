@@ -1,26 +1,18 @@
 ---
-title: "achiever_analyses_cp"
+title: "Achiever Microbial Preliminary Analyses"
 author: "Carolyn Prentice"
 date: "30/03/2020"
-output:
-  pdf_document: default
-  html_document: default
+output: html_document
 ---
 
-```{r}
-#### only have to run once, or when you update R. Need BiocManager for R v 3.6 and newer, otherwise you need BbiocLite()####
-if (!requireNamespace("BiocManager", quietly = TRUE))
-  +     install.packages("BiocManager")
-BiocManager::install()
-#########################################################
-#install packages
-BiocManager::install("phyloseq")
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
 ```
 
 First we need to load the required packages
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r Packages}
 
 #load packages
 library("phyloseq"); packageVersion("phyloseq")
@@ -30,22 +22,34 @@ library(extrafont)
 library(viridis)
 library(ggplot2)
 library(vegan)
+library(rmarkdown)
+library(data.table)
 
 ```
 
 
-#First I will focus on the BACTERIA data, and below examine the PHYTPLANKTON data from the 16S hloroplast sequences
+# Introduction
 
-```{r, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+In June of 2019, the Hakai Institute surveyed three of British Columbia's coastal fjords - Bute, Knight and Toba Inlets. The goal of the survey was to characterize the (micro)biology, chemistry, and physics of the water column of these glacially influenced fjords, where climate change impacts are expected to be acute and where changes in ocean conditions are already occuring.
+
+In this file, we will examine the microbial (Bacteria, Archaea) and Phytoplankton communtiies in these three fjords, as well as from three rivers flowing into Bute Inlet, and seasonal trends at station QU43, which is located at the mouth of Bute Inlet and sampled all year round. Information on the microbial communities was obtained by extracting DNA from water samples and sequencing the V4-V5 region of the 16S rRNA gene. 
+
+
+```{r Load Microbe Data}
 
 #load 16S microbial taxonomy, asv, and metadata files
 asvfile <-read.csv("Achiever_QU43_ASV_2020.csv", row.names=1, header = TRUE)
 taxfile <-as.matrix(read.csv("Achiever_QU43_Taxa_2020.csv",row.names=1,header = TRUE))
 mapfile <-read.csv("Achiever_QU43_Metadata_2020.csv", row.names=1,header=TRUE)
+
 ```
 
-```{r}
+We will create a PhyloSeq object, which constists of the following:
+1. An OTU (Operational Taxonomic Unit) Table, or in this case a Amplicon Sequence Varient (ASV) Table
+2. A Taxa file
+3. A Metadata file 
+
+```{r Create PhyloSeq Object}
 ##turn them into components for phyloseq object
 
 OTU1 = otu_table(asvfile, taxa_are_rows = TRUE)
@@ -55,64 +59,142 @@ MAP1 = sample_data(mapfile)
 #Make Phyloseq Object
 Achiever_Bac = merge_phyloseq(OTU1, TAX1, MAP1)
 
-#Remove singletons (taxa that appear only once)
-
-#remove singletons
-Achiever_Bac<-prune_taxa(taxa_sums(Achiever_Bac) > 1, Achiever_Bac) 
-
+ntaxa(Achiever_Bac)
+#2814 taxa before removing singletons
 
 ```
 
-```{r}
+Next we will remove any taxa that appear only once in the dataset 
+
+```{r Remove Singletons}
+#Remove singletons -- taxa that appear only once
+
+Achiever_Bac<-prune_taxa(taxa_sums(Achiever_Bac) > 1, Achiever_Bac) 
+
+ntaxa(Achiever_Bac)  #2804 taxa once singletons removed
+
+```
+
+And do some summary statistics of the data set
+
+```{r Phyloseq Summary Statistics}
+
+#gives us the number and taxa and number of samples
 otu_table(Achiever_Bac) #2804 taxa and 107 samples
 sample_data(Achiever_Bac)
 tax_table(Achiever_Bac)
 
 
 ntaxa(Achiever_Bac)  #2804
+```
+
+First we can get a sense of the data by looking at the various phyla present in the three inlets (top panel) compared with the River samples and station QU43 samples
+
+```{r Bar Plot of Phyla across Locations}
+
+
+#from Colleen's R code:
+
+#First summarize data by phylum
+achiever_phylum <- Achiever_Bac %>%
+  tax_glom(taxrank = "Phylum") %>%                        # agglomerate at phylum level
+  transform_sample_counts(function(x) {x/sum(x)} )    # Transform to rel. abundance
+
+
+#Convert phyloseq object to a normal data table to make more customizable plots
+ach_dat <- data.table(psmelt(achiever_phylum))
+
+#Convert Phylum to a character vector from a factor because R
+ach_dat$achiever_phylum <- as.character(ach_dat$achiever_phylum)
+
+# group dataframe by Phylum, calculate median rel. abundance
+ach_dat[, mean := mean(Abundance, na.rm = TRUE), 
+    by = "Phylum"]
+
+#Change name to remainder of Phylum less than .5%
+ach_dat[(mean <= 0.005), Phylum := "Remainder"]
+
+#Do this so that R will plot in this specific order
+ach_dat$Depth2 <- factor(ach_dat$Depth2, levels = c("0","5","10","25-30","90","100-200","200-300","400-500",">500"))
+
+
+#Do this so the 3 fjords will be grouped on top for the facet wrap using Location3
+ach_dat$Location3 <- factor(ach_dat$Location3, levels = c("Bute", "Knight", "Toba", "QU43", "River"))
+
+
+#Bar graph of dominant phyla faceted by locations (fjords, river, qu43)
+ggplot(ach_dat, aes(x=Phylum, y=Abundance)) +
+  geom_bar(aes(fill = Phylum), stat = "summary", fun.y = "mean", position = "dodge") +
+  scale_fill_viridis_d(option="plasma") +
+  theme_bw() +
+  facet_wrap(~Location3) +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none", strip.text = element_text(size = 15)) +
+  labs(x="Phylum", y="Average Relative Abundance")
+  
+```
+
+You can see that some phyla dominate across all locations (**Proteobacteria**, **Bacteroidota**), while others are less prominent and vary slightly across locations (e.g. **Crenarchaeota** in marine locations, but absent from rivers, **Actinobacteriota** slightly more abundant in rivers than marine locations)
+
+
+Next we can do the same thing but visualize the phyla by **depth** bins as well as Location
+
+```{r Bar Plot of Phyla across Depths}
+
+#Bar graph of dominant phyla faceted by depths
+ggplot(ach_dat, aes(x=Phylum, y=Abundance)) +
+  geom_bar(aes(fill = Phylum), stat = "summary", fun.y = "mean", position = "dodge") +
+  scale_fill_viridis_d(option="plasma") +
+  theme_bw() +
+  facet_wrap(~Depth2) +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none", strip.text = element_text(size = 15)) +
+  labs(x="Phylum", y="Average Relative Abundance")
+
 
 ```
 
+Similar to the location trends, you can see that some phyla dominate across all depths (namely **Proteobacteria** and **Bacteroidota**). However, the **Bacteroidota** seem to become less abundant at greater depths. The diversity of phyla also seems to increase with depth, with a few phyla becoming apparently more abundant as depth increases (e.g. **Marine group B**).
 
 
-```{r}
-#to perform a PERMANOVA
+Next, we can start to get a sense of if the community changes seasonally by looking at phyla across seasons. Note that only QU43 was sampled across the seasons so I will only look at QU43 for this
 
-metadata <- as(sample_data(Achiever_Bac), "data.frame")
+```{r Bar Plot of Phyla across Seasons}
 
-#seeing if there is a significant effect of Depth
+#Bar graph of dominant phyla faceted by season
 
-adon_depth<-adonis(distance(Achiever_Bac, method="bray") ~ Depth2,
-       data = metadata)
-adon_depth
+achiever_phylum_qu43 <- Achiever_Bac_QU43 %>%
+  tax_glom(taxrank = "Phylum") %>%                        # agglomerate at phylum level
+  transform_sample_counts(function(x) {x/sum(x)} )    # Transform to rel. abundance
 
-#effect of Location? (Toba, Knight, Bute, QU43, Homathko, 5005, Orford)
+#Convert phyloseq object to a normal data table to make more customizable plots
+ach_dat_qu43 <- data.table(psmelt(achiever_phylum_qu43))
 
-adon_loc<-adonis(distance(Achiever_Bac, method="bray") ~ Location2,data = metadata)
+#Convert Phylum to a character vector from a factor because R
+ach_dat_qu43$achiever_phylum_qu43 <- as.character(ach_dat_qu43$achiever_phylum_qu43)
 
-adon_loc
+# group dataframe by Phylum, calculate median rel. abundance
+ach_dat_qu43[, mean := mean(Abundance, na.rm = TRUE), 
+    by = "Phylum"]
+
+#Change name to remainder of Phylum less than .5%
+ach_dat_qu43[(mean <= 0.005), Phylum := "Remainder"]
+
+ggplot(ach_dat_qu43, aes(x=Phylum, y=Abundance)) +
+  geom_bar(aes(fill = Phylum), stat = "summary", fun.y = "mean", position = "dodge") +
+  scale_fill_viridis_d(option="plasma") +
+  theme_bw() +
+  facet_wrap(~Season) +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none", strip.text = element_text(size = 15)) +
+  labs(x="Phylum", y="Average Relative Abundance")
+
 
 ```
 
-
-```{r setup, include=FALSE}
-theme_set(theme_bw())
-
-#Bac.ord <- ordinate(Achiever_Bac, "NMDS", "bray")
-#p1 = plot_ordination(Achiever_Bac, Bac.ord, type="Taxa", color="Phylum", title="Taxa")
-#p1 + facet_wrap(~Phylum, 3)
-
-plot_bar(Achiever_Bac, fill = "Phylum")
-
-ordu = ordinate(Achiever_Bac, "PCoA", "unifrac", weighted=TRUE)
-
-#a lot of info for one ordination!
-```
+At least at the phylum level there aren't any strong trends among seasons
 
 
 Here I will do some ordination plots using Colleen's code  
 
-```{r setup, include=FALSE}
+```{r ORDINATION 2}
 
 set.seed(1)
 achiever_nmds <- ordinate(
@@ -159,10 +241,29 @@ p1
 
 
 
+```{r PERMARNOVA}
+#to perform a PERMANOVA
+
+metadata <- as(sample_data(Achiever_Bac), "data.frame")
+
+#seeing if there is a significant effect of Depth
+
+adon_depth<-adonis(distance(Achiever_Bac, method="bray") ~ Depth2,
+       data = metadata)
+adon_depth
+
+#effect of Location? (Toba, Knight, Bute, QU43, Homathko, 5005, Orford)
+
+adon_loc<-adonis(distance(Achiever_Bac, method="bray") ~ Location2,data = metadata)
+
+adon_loc
+
+```
+
 
 Here I am bringing in the chloroplast data from the 16S sequences
 
-```{r setup, include=FALSE}
+```{r Load Phytoplankton Data}
 knitr::opts_chunk$set(echo = TRUE)
 
 #load taxonomy, asv, and metadata files
@@ -171,7 +272,6 @@ taxfile2 <-as.matrix(read.csv("Achiever_QU43_Taxa_2020_chloroplast.csv",row.name
 mapfile2 <-read.csv("Achiever_QU43_Metadata_2020_chloroplast.csv", row.names=1,header=TRUE)
 
 ```
-
 
 
 ## Including Plots
