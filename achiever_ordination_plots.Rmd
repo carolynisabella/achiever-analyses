@@ -1,0 +1,128 @@
+---
+title: "Achiever Microbial Ordination Plots"
+author: "Carolyn Prentice"
+date: "12/04/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#load packages
+
+library("phyloseq"); packageVersion("phyloseq")
+library(tidyverse)
+library(dbplyr)
+library(extrafont)
+library(viridis)
+library(ggplot2)
+library(vegan)
+library(rmarkdown)
+library(data.table)
+
+```
+
+
+
+## Introduction
+
+```{r Load Microbe Data}
+
+#load 16S microbial taxonomy, asv, and metadata files
+asvfile <-read.csv("Achiever_QU43_ASV_2020.csv", row.names=1, header = TRUE)
+taxfile <-as.matrix(read.csv("Achiever_QU43_Taxa_2020.csv",row.names=1,header = TRUE))
+mapfile <-read.csv("Achiever_QU43_Metadata_2020.csv", row.names=1,header=TRUE)
+
+```
+
+
+Here I will do some ordination plots using Colleen's code  
+
+```{r ORDINATION 2}
+
+set.seed(1)
+achiever_nmds <- ordinate(
+  physeq = Achiever_Bac, 
+  method = "NMDS", 
+  distance = "bray",
+  trymax = 50
+)
+
+
+p1 <- plot_ordination(
+  physeq = Achiever_Bac,
+  ordination = achiever_nmds,
+  color = "Location2", #you can change this variable to other things like "Depth", "Station", "Location" ,etc. and it will automatically change the colors.
+  shape = "Depth2"
+  ) 
+
+#order Location2 in legend in a specific order, rather than alphabetical
+p1$data$Location2 <- factor(p1$data$Location2, levels = c("4791","Homathko","QU43" ,"Bute","Toba","Knight"))
+
+#Order Depth2 in legend in descending order
+p1$data$Depth2 <- factor(p1$data$Depth2, levels = c("0","5","10","25-30","90","100-200","200-300","400-500",">500"))
+
+
+#Changing aesthetics of plot1 -- colour, point size etc.
+
+
+#now plot, using the viridis color scheme. can change to other or use specific colors, as above.
+p1 + geom_point(size = 3) + 
+  scale_color_brewer(palette = "Spectral") +
+  theme_bw() +
+  theme(
+    panel.background = element_rect(fill = "transparent",colour = NA),
+    plot.background = element_rect(fill = "transparent",colour = NA),
+    panel.grid.major = element_blank(), 
+    panel.grid.minor = element_blank())
+
+p1
+
+
+#scale_color_viridis(discrete=TRUE, option="plasma")
+
+```
+
+
+
+```{r PERMARNOVA}
+#to perform a PERMANOVA
+
+metadata <- as(sample_data(Achiever_Bac), "data.frame")
+
+#seeing if there is a significant effect of Depth
+
+adon_depth<-adonis(distance(Achiever_Bac, method="bray") ~ Depth2,
+       data = metadata)
+adon_depth
+
+#effect of Location? (Toba, Knight, Bute, QU43, Homathko, 5005, Orford)
+
+adon_loc<-adonis(distance(Achiever_Bac, method="bray") ~ Location2,data = metadata)
+
+adon_loc
+
+```
+
+
+
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

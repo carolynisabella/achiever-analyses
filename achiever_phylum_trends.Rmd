@@ -1,0 +1,321 @@
+---
+title: "Achiever Microbial Preliminary Analyses"
+author: "Carolyn Prentice"
+date: "30/03/2020"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width=12, fig.height=8)
+
+#load packages
+library("phyloseq"); packageVersion("phyloseq")
+library(tidyverse)
+library(dbplyr)
+library(extrafont)
+library(viridis)
+library(ggplot2)
+library(vegan)
+library(rmarkdown)
+library(data.table)
+
+```
+
+
+# Introduction
+
+In June of 2019, the Hakai Institute surveyed three of British Columbia's coastal fjords - Bute, Knight and Toba Inlets. The goal of the survey was to characterize the (micro)biology, chemistry, and physics of the water column of these glacially influenced fjords, where climate change impacts are expected to be acute and where changes in ocean conditions are already occuring.
+
+In this file, we will examine the phylum trends for microbial (Bacteria, Archaea) and Phytoplankton communtiies in these three fjords, as well as from three rivers flowing into Bute Inlet, and seasonal trends at station QU43, which is located at the mouth of Bute Inlet and sampled all year round. Information on the microbial communities was obtained by extracting DNA from water samples and sequencing the V4-V5 region of the 16S rRNA gene. 
+
+
+#16S Microbial Data
+
+```{r Load Microbe Data}
+
+#load 16S microbial taxonomy, asv, and metadata files
+asvfile <-read.csv("Achiever_QU43_ASV_2020.csv", row.names=1, header = TRUE)
+taxfile <-as.matrix(read.csv("Achiever_QU43_Taxa_2020.csv",row.names=1,header = TRUE))
+mapfile <-read.csv("Achiever_QU43_Metadata_2020.csv", row.names=1,header=TRUE)
+
+```
+
+We will create a PhyloSeq object, which constists of the following:
+1. An OTU (Operational Taxonomic Unit) Table, or in this case a Amplicon Sequence Varient (ASV) Table
+2. A Taxa file
+3. A Metadata file 
+
+```{r Create PhyloSeq Object}
+##turn them into components for phyloseq object
+
+OTU1 = otu_table(asvfile, taxa_are_rows = TRUE)
+TAX1 = tax_table(taxfile)
+MAP1 = sample_data(mapfile)
+
+#Make Phyloseq Object
+Achiever_Bac = merge_phyloseq(OTU1, TAX1, MAP1)
+
+ntaxa(Achiever_Bac)
+#2814 taxa before removing singletons
+
+```
+
+Next we will remove any taxa that appear only once in the dataset 
+
+```{r Remove Singletons}
+#Remove singletons -- taxa that appear only once
+
+Achiever_Bac<-prune_taxa(taxa_sums(Achiever_Bac) > 1, Achiever_Bac) 
+
+ntaxa(Achiever_Bac)  #2804 taxa once singletons removed
+
+```
+
+First we can get a sense of the data by looking at the various phyla present in the three inlets (top panel) compared with the River samples and station QU43 samples
+
+```{r Bar Plot of Phyla across Locations}
+
+#from Colleen's R code:
+
+#First summarize data by phylum
+achiever_phylum <- Achiever_Bac %>%
+  tax_glom(taxrank = "Phylum") %>%                        # agglomerate at phylum level
+  transform_sample_counts(function(x) {x/sum(x)} )    # Transform to rel. abundance
+
+
+#Convert phyloseq object to a normal data table to make more customizable plots
+ach_dat <- data.table(psmelt(achiever_phylum))
+
+#Convert Phylum to a character vector from a factor because R
+ach_dat$achiever_phylum <- as.character(ach_dat$achiever_phylum)
+
+# group dataframe by Phylum, calculate median rel. abundance
+ach_dat[, mean := mean(Abundance, na.rm = TRUE), 
+    by = "Phylum"]
+
+#Change name to remainder of Phylum less than .5%
+ach_dat[(mean <= 0.005), Phylum := "Remainder"]
+
+#Do this so that R will plot in this specific order
+ach_dat$Depth2 <- factor(ach_dat$Depth2, levels = c("0","5","10","25-30","90","100-200","200-300","400-500",">500"))
+
+
+#Do this so the 3 fjords will be grouped on top for the facet wrap using Location3
+ach_dat$Location3 <- factor(ach_dat$Location3, levels = c("Bute", "Knight", "Toba", "QU43", "River"))
+
+
+#Bar graph of dominant phyla faceted by locations (fjords, river, qu43)
+ggplot(ach_dat, aes(x=Phylum, y=Abundance)) +
+  geom_bar(aes(fill = Phylum), stat = "summary", fun.y = "mean", position = "dodge") +
+  scale_fill_viridis_d(option="plasma") +
+  theme_bw() +
+  facet_wrap(~Location3) +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none", strip.text = element_text(size = 15)) +
+  labs(x="Phylum", y="Average Relative Abundance")
+  
+```
+
+You can see that some phyla dominate across all locations (**Proteobacteria**, **Bacteroidota**), while others are less prominent and vary slightly across locations (e.g. **Crenarchaeota** in marine locations, but absent from rivers, **Actinobacteriota** slightly more abundant in rivers than marine locations)
+
+
+Next we can do the same thing but visualize the phyla by **depth** bins
+
+```{r Bar Plot of Phyla across Depths}
+
+#Bar graph of dominant phyla faceted by depths
+ggplot(ach_dat, aes(x=Phylum, y=Abundance)) +
+  geom_bar(aes(fill = Phylum), stat = "summary", fun.y = "mean", position = "dodge") +
+  scale_fill_viridis_d(option="plasma") +
+  theme_bw() +
+  facet_wrap(~Depth2) +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none", strip.text = element_text(size = 15)) +
+  labs(x="Phylum", y="Average Relative Abundance")
+
+
+```
+
+Similar to the location trends, you can see that some phyla dominate across all depths (namely **Proteobacteria** and **Bacteroidota**). However, the **Bacteroidota** seem to become less abundant at greater depths. The diversity of phyla also seems to increase with depth, with a few phyla becoming apparently more abundant as depth increases (e.g. **Marine group B**).
+
+
+Next, we can start to get a sense of if the community changes seasonally by looking at phyla across seasons. Note that only QU43 was sampled across the seasons so I will only look at QU43 for this
+
+```{r Bar Plot of Phyla across Seasons at QU43}
+
+#Bar graph of dominant phyla faceted by season 
+
+QU43_Bac<-Achiever_Bac %>%
+  subset_samples(Station == "QU43")
+
+
+qu43_phylum <- QU43_Bac %>%
+  tax_glom(taxrank = "Phylum") %>%                        # agglomerate at phylum level
+  transform_sample_counts(function(x) {x/sum(x)} )    # Transform to rel. abundance
+
+#Convert phyloseq object to a normal data table to make more customizable plots
+qu43_dat <- data.table(psmelt(qu43_phylum))
+
+#Convert Phylum to a character vector from a factor because R
+qu43_dat$qu43_phylum <- as.character(qu43_dat$qu43_phylum)
+
+# group dataframe by Phylum, calculate median rel. abundance
+qu43_dat[, mean := mean(Abundance, na.rm = TRUE), 
+    by = "Phylum"]
+
+#Change name to remainder of Phylum less than .5%
+qu43_dat[(mean <= 0.005), Phylum := "Remainder"]
+
+ggplot(qu43_dat, aes(x=Phylum, y=Abundance)) +
+  geom_bar(aes(fill = Phylum), stat = "summary", fun.y = "mean", position = "dodge") +
+  scale_fill_viridis_d(option="plasma") +
+  theme_bw() +
+  facet_wrap(~Season) +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none", strip.text = element_text(size = 15)) +
+  labs(x="Phylum", y="Average Relative Abundance")
+
+```
+
+At least at the phylum level there aren't any strong seasonal trends -- seasonality may very well come out at lower taxonomic resolution or at the community level (see ordination plots)
+
+
+#16S Chloroplast (Phytoplankton) Data
+
+Now we will load the 16S CHLOROPLAST data from the 16S sequences
+
+```{r Load Phytoplankton Data}
+
+#load taxonomy, asv, and metadata files
+asvfile2 <-read.csv("Achiever_QU43_ASV_2020_chloroplast.csv", row.names=1, header = TRUE)
+taxfile2 <-as.matrix(read.csv("Achiever_QU43_Taxa_2020_chloroplast.csv",row.names=1,header = TRUE))
+mapfile2 <-read.csv("Achiever_QU43_Metadata_2020_chloroplast.csv", row.names=1,header=TRUE)
+
+```
+
+Just as with the bacteria data, I will create a new Phyloseq object with the phytoplankton (chloroplast) data
+
+```{r Create PhyloSeq Object for Phyto}
+##turn them into components for phyloseq object
+
+OTU2 = otu_table(asvfile2, taxa_are_rows = TRUE)
+TAX2 = tax_table(taxfile2)
+MAP2 = sample_data(mapfile2)
+
+#Make Phyloseq Object
+Achiever_Phyto = merge_phyloseq(OTU2, TAX2, MAP2)
+
+ntaxa(Achiever_Phyto)
+#336 taxa before removing singletons
+
+```
+
+
+Again, we will remove any taxa that appear only once in the dataset 
+
+```{r Remove Singletons Phyto}
+#Remove singletons -- taxa that appear only once
+
+Achiever_Phyto<-prune_taxa(taxa_sums(Achiever_Phyto) > 1, Achiever_Phyto) 
+
+ntaxa(Achiever_Phyto)  #333 taxa now instead of 336
+
+```
+
+First we can get a sense of the data by looking at the various phyla present in the three inlets (top panel) compared with the River samples
+
+```{r Bar Plot of Phyto across Locations}
+
+#from Colleen's R code:
+#Note that for phytoplankton data, Phylum column is 'Level3'
+
+#First summarize data by phylum
+phyto_level <- Achiever_Phyto %>%
+  tax_glom(taxrank = "Level3") %>%         # agglomerate at level3
+  transform_sample_counts(function(x) {x/sum(x)} )    # Transform to rel. abundance
+
+
+#Convert phyloseq object to a normal data table to make more customizable plots
+phyto_dat <- data.table(psmelt(phyto_level))
+
+#Convert Phylum to a character vector from a factor because R
+phyto_dat$phyto_level <- as.character(phyto_dat$phyto_level)
+
+# group dataframe by Phylum, calculate median rel. abundance
+phyto_dat[, mean := mean(Abundance, na.rm = TRUE), 
+    by = "Level3"]
+
+#Change name to remainder of Phylum less than .5%
+phyto_dat[(mean <= 0.005), Level3 := "Remainder"]
+
+#Do this so that R will plot in this specific order
+phyto_dat$Depth2 <- factor(phyto_dat$Depth2, levels = c("0","5","10","25-30","90","100-200","200-300","400-500",">500"))
+
+
+#Do this so the 3 fjords will be grouped on top for the facet wrap using Location3
+phyto_dat$Location2 <- factor(phyto_dat$Location2, levels = c("Bute", "Knight", "Toba", "QU43", "4791", "Homathko"))
+
+
+#Bar graph of dominant phyla faceted by locations (fjords, river, qu43)
+ggplot(phyto_dat, aes(x=Level3, y=Abundance)) +
+  geom_bar(aes(fill = Level3), stat = "summary", fun.y = "mean", position = "dodge") +
+  scale_fill_viridis_d() +
+  theme_bw() +
+  facet_wrap(~Location2) +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none", strip.text = element_text(size = 15)) +
+  labs(x="Phylum", y="Average Relative Abundance")
+  
+```
+
+We can see that the phytoplankton taxa are quite different in the two river samples (4791 and Homathko) compared with the marine locations (QU43, Bute, Knight, Toba). For example, Bacillariophyta dominate in the marine samples, whereas they are noticebly less dominant in the river samples, where Chrysophyceae dominate instead. Further, there appear to be overall less phyla present in the river samples.
+
+However, there are also some minor differences in the taxa present and their abundance among the marine samples. 
+
+
+```{r Bar Plot of Phyto across Depths}
+
+#Bar graph of dominant phyla faceted by depths
+ggplot(phyto_dat, aes(x=Level3, y=Abundance)) +
+  geom_bar(aes(fill = Level3), stat = "summary", fun.y = "mean", position = "dodge") +
+  scale_fill_viridis_d() +
+  theme_bw() +
+  facet_wrap(~Depth2) +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none", strip.text = element_text(size = 15)) +
+  labs(x="Phylum", y="Average Relative Abundance")
+
+
+```
+
+```{r Bar Plot of Phyto across Seasons at QU43}
+
+#Bar graph of dominant phyla faceted by season 
+
+
+QU43_Phyto<-Achiever_Phyto %>%
+  subset_samples(Station == "QU43")
+
+
+qu43_phyto <- QU43_Phyto %>%
+  tax_glom(taxrank = "Level3") %>%                        # agglomerate at phylum level
+  transform_sample_counts(function(x) {x/sum(x)} )    # Transform to rel. abundance
+
+#Convert phyloseq object to a normal data table to make more customizable plots
+qu43_phyto_dat <- data.table(psmelt(qu43_phyto))
+
+#Convert Phylum to a character vector from a factor because R
+qu43_phyto_dat$qu43_phyto <- as.character(qu43_phyto_dat$qu43_phyto)
+
+# group dataframe by Phylum, calculate median rel. abundance
+qu43_phyto_dat[, mean := mean(Abundance, na.rm = TRUE), 
+    by = "Level3"]
+
+#Change name to remainder of Phylum less than .5%
+qu43_phyto_dat[(mean <= 0.005), Level3 := "Remainder"]
+
+ggplot(qu43_phyto_dat, aes(x=Level3, y=Abundance)) +
+  geom_bar(aes(fill = Level3), stat = "summary", fun.y = "mean_se()", position = "dodge") +
+  scale_fill_viridis_d() +
+  theme_bw() +
+  facet_wrap(~Season) +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none", strip.text = element_text(size = 15)) +
+  labs(x="Phylum", y="Average Relative Abundance")
+
+```
