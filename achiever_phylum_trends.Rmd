@@ -2,7 +2,9 @@
 title: "Achiever Microbial Preliminary Analyses"
 author: "Carolyn Prentice"
 date: "30/03/2020"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 
@@ -27,10 +29,10 @@ library(data.table)
 
 In June of 2019, the Hakai Institute surveyed three of British Columbia's coastal fjords - Bute, Knight and Toba Inlets. The goal of the survey was to characterize the (micro)biology, chemistry, and physics of the water column of these glacially influenced fjords, where climate change impacts are expected to be acute and where changes in ocean conditions are already occuring.
 
-In this file, we will examine the phylum trends for microbial (Bacteria, Archaea) and Phytoplankton communtiies in these three fjords, as well as from three rivers flowing into Bute Inlet, and seasonal trends at station QU43, which is located at the mouth of Bute Inlet and sampled all year round. Information on the microbial communities was obtained by extracting DNA from water samples and sequencing the V4-V5 region of the 16S rRNA gene. 
+In this file, we will examine the phylum trends for microbial (Bacteria, Archaea) and Phytoplankton communtiies in these three fjords, as well as from three rivers flowing into Bute Inlet, and seasonal trends at station QU43, which is located at the mouth of Bute Inlet and sampled all year round. Information on the microbial communities was obtained by extracting DNA from water samples and sequencing the V4-V5 region of the 16S rRNA gene, which includes chloroplast sequence data that allows us to get a sense of the phytoplankton community as well. 
 
 
-#16S Microbial Data
+# 16S Microbial Data
 
 ```{r Load Microbe Data}
 
@@ -72,9 +74,9 @@ ntaxa(Achiever_Bac)  #2804 taxa once singletons removed
 
 ```
 
-First we can get a sense of the data by looking at the various phyla present in the three inlets (top panel) compared with the River samples and station QU43 samples
+First we can get a broad sense of the data by looking at the various phyla present across all locations and depths together.
 
-```{r Bar Plot of Phyla across Locations}
+```{r Bar Plot of Phyla}
 
 #from Colleen's R code:
 
@@ -110,13 +112,28 @@ ggplot(ach_dat, aes(x=Phylum, y=Abundance)) +
   geom_bar(aes(fill = Phylum), stat = "summary", fun.y = "mean", position = "dodge") +
   scale_fill_viridis_d(option="plasma") +
   theme_bw() +
-  facet_wrap(~Location3) +
   theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none", strip.text = element_text(size = 15)) +
   labs(x="Phylum", y="Average Relative Abundance")
   
 ```
 
-You can see that some phyla dominate across all locations (**Proteobacteria**, **Bacteroidota**), while others are less prominent and vary slightly across locations (e.g. **Crenarchaeota** in marine locations, but absent from rivers, **Actinobacteriota** slightly more abundant in rivers than marine locations)
+We can see that two phyla: **Proteobacteria** (orange), **Bacteroidota** (dark blue) are quite dominant, and a number of other phyla are present in lower abundances. Next, we can look at the phylum trends across the various locations: in the three inlets (top panel) compared with the River samples and station QU43 samples
+
+```{r Bar Plot of Phyla across Locations}
+
+#Bar graph of dominant phyla faceted by depths
+ggplot(ach_dat, aes(x=Phylum, y=Abundance)) +
+  geom_bar(aes(fill = Phylum), stat = "summary", fun.y = "mean", position = "dodge") +
+  scale_fill_viridis_d(option="plasma") +
+  theme_bw() +
+  facet_wrap(~Location3) +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none", strip.text = element_text(size = 15)) +
+  labs(x="Phylum", y="Average Relative Abundance")
+
+
+```
+
+You can see that some phyla dominate across all locations (**Proteobacteria** (orange), **Bacteroidota** (dark blue)), while others are less prominent and vary slightly across locations (e.g. **Crenarchaeota** (purple) in marine locations, but absent from rivers, **Actinobacteriota** (navy blue) slightly more abundant in rivers than marine locations)
 
 
 Next we can do the same thing but visualize the phyla by **depth** bins
@@ -135,7 +152,7 @@ ggplot(ach_dat, aes(x=Phylum, y=Abundance)) +
 
 ```
 
-Similar to the location trends, you can see that some phyla dominate across all depths (namely **Proteobacteria** and **Bacteroidota**). However, the **Bacteroidota** seem to become less abundant at greater depths. The diversity of phyla also seems to increase with depth, with a few phyla becoming apparently more abundant as depth increases (e.g. **Marine group B**).
+Similar to the location trends, you can see that some phyla dominate across all depths (namely **Proteobacteria** in orange and **Bacteroidota** in dark blue). However, the **Bacteroidota** (dark blue bars) seem to become less abundant at greater depths. The diversity of phyla also seems to increase with depth, with a few phyla becoming apparently more abundant as depth increases (e.g. **Marine group B**).
 
 
 Next, we can start to get a sense of if the community changes seasonally by looking at phyla across seasons. Note that only QU43 was sampled across the seasons so I will only look at QU43 for this
@@ -178,7 +195,7 @@ ggplot(qu43_dat, aes(x=Phylum, y=Abundance)) +
 At least at the phylum level there aren't any strong seasonal trends -- seasonality may very well come out at lower taxonomic resolution or at the community level (see ordination plots)
 
 
-#16S Chloroplast (Phytoplankton) Data
+# 16S Chloroplast (Phytoplankton) Data
 
 Now we will load the 16S CHLOROPLAST data from the 16S sequences
 
@@ -208,7 +225,6 @@ ntaxa(Achiever_Phyto)
 
 ```
 
-
 Again, we will remove any taxa that appear only once in the dataset 
 
 ```{r Remove Singletons Phyto}
@@ -220,9 +236,9 @@ ntaxa(Achiever_Phyto)  #333 taxa now instead of 336
 
 ```
 
-First we can get a sense of the data by looking at the various phyla present in the three inlets (top panel) compared with the River samples
+First we can get a broad sense of the data by looking at the various phytoplankton phyla present across all locations and depths together.
 
-```{r Bar Plot of Phyto across Locations}
+```{r Bar Plot of Phyto}
 
 #from Colleen's R code:
 #Note that for phytoplankton data, Phylum column is 'Level3'
@@ -259,13 +275,29 @@ ggplot(phyto_dat, aes(x=Level3, y=Abundance)) +
   geom_bar(aes(fill = Level3), stat = "summary", fun.y = "mean", position = "dodge") +
   scale_fill_viridis_d() +
   theme_bw() +
-  facet_wrap(~Location2) +
   theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none", strip.text = element_text(size = 15)) +
   labs(x="Phylum", y="Average Relative Abundance")
   
 ```
 
-We can see that the phytoplankton taxa are quite different in the two river samples (4791 and Homathko) compared with the marine locations (QU43, Bute, Knight, Toba). For example, Bacillariophyta dominate in the marine samples, whereas they are noticebly less dominant in the river samples, where Chrysophyceae dominate instead. Further, there appear to be overall less phyla present in the river samples.
+It is quite clear that **DIATOMS** are a dominant phyla (**Bacillatiophyta**, purple) and **Crytophyceae** (common in freshwater/brackish habitats), **Prymnesiophyceae** (haptophytes) and **Mamiellophyceae** (unicellular green algae) are the next most abundant. Other phyla are present but relatively rare.
+
+Next we can look at the trends based on location:in the three inlets (top panel) compared with the River samples
+
+
+```{r Bar Plot of Phyto across Locations}
+#Bar graph of dominant phyla faceted by locations (fjords, river, qu43)
+ggplot(phyto_dat, aes(x=Level3, y=Abundance)) +
+  geom_bar(aes(fill = Level3), stat = "summary", fun.y = "mean", position = "dodge") +
+  scale_fill_viridis_d() +
+  theme_bw() +
+  facet_wrap(~Location2) +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none", strip.text = element_text(size = 15)) +
+  labs(x="Phylum", y="Average Relative Abundance")
+```
+
+
+We can see that the phytoplankton taxa are quite different in the two river samples (4791 and Homathko) compared with the marine locations (QU43, Bute, Knight, Toba). For example, **Bacillariophyta** dominate in the marine samples, whereas they are noticebly less abundant in the river samples, where **Chrysophyceae** dominate instead. Further, there appear to be overall less phyla present in the river samples.
 
 However, there are also some minor differences in the taxa present and their abundance among the marine samples. 
 
@@ -281,8 +313,10 @@ ggplot(phyto_dat, aes(x=Level3, y=Abundance)) +
   theme(axis.text.x = element_text(angle = 35, hjust = 1), legend.position = "none", strip.text = element_text(size = 15)) +
   labs(x="Phylum", y="Average Relative Abundance")
 
-
 ```
+
+Looking across depths, we see that some phyla are abundant across all depths (diatoms again in purple), whereas some phyla are more or less abundant at different depths (e.g. Cryptophyceae in medium blue). Interesting that they become more abnundant at 200-300m? 
+
 
 ```{r Bar Plot of Phyto across Seasons at QU43}
 
@@ -319,3 +353,7 @@ ggplot(qu43_phyto_dat, aes(x=Level3, y=Abundance)) +
   labs(x="Phylum", y="Average Relative Abundance")
 
 ```
+
+Seasonal trends are a bit more abundant with the Phytoplankton data compared to the Bacteria/Archaea data. For example there is some clear diatom seasonality, with highest abundance in Autumn, followed by Summer, Spring and then Winter. Most other phyla also appear to exhibit some degree of seasonality (e.g. **Raphidophyceae** (light green) most abundant in summer, **Mamiellophyceae** (turquoise) most abundant in winter).
+
+In the next R Markdown document ('achiever_ordination_plots.Rmd'), I will start to explore community level trends using ordination methods, as well as examine environmental variables as drivers of these trends.
